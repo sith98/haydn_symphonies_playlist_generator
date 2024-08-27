@@ -68,9 +68,16 @@ def main():
     with open("christmas_oratorio.json") as file:
         christmas_oratorio = json.load(file)
     with open("cantata_order.txt") as file:
-        order = [line.strip() for line in file.readlines() if line.strip != ""]
+        order = {
+            line.strip(): i
+            for i, line in enumerate(file.readlines())
+            if line.strip != ""
+        }
 
-    bwvs = set()
+    for cat in ranking:
+        cat["bwvs"].sort(key=lambda bwv: order[bwv] if bwv in order else -1)
+
+    tracks_by_bwv = {}
     for i, track in enumerate(tracks):
         name = get_name(track)
         bwv = get_bwv(name)
@@ -96,20 +103,36 @@ def main():
                 continue
         if name in christmas_oratorio:
             bwv += "/" + christmas_oratorio[name]
-        bwvs.add(bwv)
+        if bwv not in tracks_by_bwv:
+            tracks_by_bwv[bwv] = []
+        # get rid of multiple version in Suzuki recordings
+        if bwv == "21" and "Leipzig" not in name:
+            continue
+        if bwv == "82" and "Soprano" in name:
+            continue
+        tracks_by_bwv[bwv].append(track)
 
+    new_tracks = []
     for cat in ranking:
-        for bwv in cat["bwvs"]:
-            if bwv in bwvs:
-                if bwv not in order:
-                    print(bwv)
-    return
+        if cat["name"] == "1":
+            for bwv in cat["bwvs"]:
+                if bwv in tracks_by_bwv:
+                    new_tracks.extend(tracks_by_bwv[bwv])
+                    # print(bwv, len(tracks_by_bwv[bwv]))
 
-    tracks = get_symphoniy_tracks()
-    with open("tracks_bach.json", "w") as file:
-        json.dump(tracks, file)
+    track_ids = [t["track"]["id"] for t in new_tracks]
+    track_names = [t["track"]["name"] for t in new_tracks]
 
-    return
+    for name in track_names:
+        print(name)
+
+    # return
+
+    # tracks = get_symphoniy_tracks()
+    # with open("tracks_bach.json", "w") as file:
+    #     json.dump(tracks, file)
+
+    # return
 
     scope = "playlist-modify-public playlist-modify-private"
 
