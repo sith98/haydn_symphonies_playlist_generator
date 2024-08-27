@@ -36,92 +36,78 @@ def get_token():
         )
 
 
+BWV = "BWV"
+ends = [":", "("]
+
+
+def get_name(track):
+    return track["track"]["name"]
+
+
+def get_bwv(name):
+    if BWV in name.upper():
+        start = name.index(BWV) + 4
+        end = start
+        while end < len(name) and name[end] in [str(i) for i in range(10)] + ["a", "b"]:
+            end += 1
+        try:
+            bwv = name[start:end]
+            return bwv
+        except Exception:
+            return None
+
+
+special_bwv = {"Schlage doch, gewünschte Stunde": "53"}
+
+
 def main():
-    with open("tracks.json") as file:
-        album = json.load(file)
+    with open("bach_ranking.json") as file:
+        ranking = json.load(file)
+    with open("tracks_bach.json") as file:
+        tracks = json.load(file)
+    with open("christmas_oratorio.json") as file:
+        christmas_oratorio = json.load(file)
+    with open("cantata_order.txt") as file:
+        order = [line.strip() for line in file.readlines() if line.strip != ""]
 
-    chronology = []
-    # source: https://www.joseph-haydn.art/de/sinfoniae/107
-    with open("chronology.txt") as file:
-        for line in file.readlines():
-            chronology.append(int(line))
+    bwvs = set()
+    for i, track in enumerate(tracks):
+        name = get_name(track)
+        bwv = get_bwv(name)
+        # if "Ascension" in name:
+        #     print(name)
+        #     print(bwv == 11)
+        if bwv is None:
+            prev = get_name(tracks[i - 1])
+            next = get_name(tracks[i + 1])
+            if get_bwv(prev) == get_bwv(next):
+                bwv = get_bwv(prev)
+            elif prev[:10] == name[:10]:
+                bwv = get_bwv(prev)
+            elif next[:10] == name[:10]:
+                bwv = get_bwv(next)
+            elif name in special_bwv:
+                bwv = special_bwv[name]
+            else:
+                print(f"No BWV:")
+                print(name)
+                print(prev)
+                print(next)
+                continue
+        if name in christmas_oratorio:
+            bwv += "/" + christmas_oratorio[name]
+        bwvs.add(bwv)
 
-    rankings = {}
-    categories = {}
-    # source: https://www.talkclassical.com/threads/haydns-symphonies-ranked-in-order-of-greatness-by-ardent-haydn-listeners-all-106-symphonies.87080/
-    with open("ranking.csv") as file:
-        reader = csv.reader(file)
-        next(reader)
-        for rank, number, nickname, points, category in reader:
-            rank = int(rank.strip())
-            number = int(number.strip())
-            points = float(points.replace(",", ".").strip())
-            rankings[number] = (rank, nickname, points, category)
-            if category not in categories:
-                categories[category] = []
-            categories[category].append((number, rank, nickname, points))
+    for cat in ranking:
+        for bwv in cat["bwvs"]:
+            if bwv in bwvs:
+                if bwv not in order:
+                    print(bwv)
+    return
 
-        ranking_csv = list(reader)
-
-    symphonies = {}
-    for song in album:
-        name = song["name"]
-        symphony = name.split(":")[0]
-        lower = symphony.lower()
-
-        if "version" in lower or "alternative" in lower:
-            continue
-
-        if '"A"' in symphony:
-            number = 105
-        elif '"B"' in symphony:
-            number = 106
-        elif "concertante" in symphony:
-            number = 107
-        else:
-            parts = symphony.split(" ")
-            index = parts.index("No.")
-            number = int(parts[index + 1])
-        if number not in symphonies:
-            symphonies[number] = []
-
-        symphonies[number].append(song)
-
-    quantile = 0.5
-    maximum_ranking = math.ceil((1 + len(rankings)) * quantile)
-
-    track_ids = []
-
-    numbers = []
-    for number in chronology:
-        if number in rankings and rankings[number][0] <= maximum_ranking:
-            symphony_tracks = symphonies[number]
-            print(number, rankings[number][-1])
-            numbers.append(number)
-            for track in symphony_tracks:
-                track_ids.append(track["id"])
-
-    # categories_in_order = []
-    # seen_categories = set()
-
-    # for number in chronology:
-    #     if number in rankings:
-    #         category = rankings[number][-1]
-    #         if category not in seen_categories:
-    #             categories_in_order.append(category)
-    #             seen_categories.add(category)
-
-    # for c in categories_in_order:
-    #     sym = categories[c]
-    #     average_points = sum(s[-1] for s in sym) / len(sym)
-
-    #     sorted_sym = sorted(sym, key=lambda s: s[-1], reverse=True)
-    #     print(c)
-    #     for s in sorted_sym[:3]:
-    #         print(s[0], s[2])
-    #     print()
-
-    print("total", len(numbers))
+    tracks = get_symphoniy_tracks()
+    with open("tracks_bach.json", "w") as file:
+        json.dump(tracks, file)
 
     return
 
@@ -139,29 +125,24 @@ def main():
 
 
 def get_symphoniy_tracks():
-    token = get_token()
-    album_id = "4mXfYJF9lS2MgUDKaz6VCV"
+    sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=""))
 
-    resp = requests.get(
-        f"{api_url}/albums/{album_id}",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    album = resp.json()
-    n_tracks = album["total_tracks"]
-    limit = 50
+    # token = get_token()
+    # https://open.spotify.com/playlist/35L8p7admQlUfYpArEHFHX?si=3637beae90fb4dd3
+    # album_id = "35L8p7admQlUfYpArEHFHX"
+    album_id = "03ef53ts1S3KTQsdfkxV2i"
+
+    playlist = sp.playlist(album_id)
+    n_tracks = playlist["tracks"]["total"]
+
+    limit = 100
 
     tracks = []
     for offset in range(0, n_tracks, limit):
-        resp = requests.get(
-            f"{api_url}/albums/{album_id}/tracks",
-            params={"offset": offset, "limit": 50},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        data = resp.json()
+        data = sp.playlist_tracks(album_id, limit=100, offset=offset)
         tracks.extend(data["items"])
         print(offset)
-    with open("tracks.json", "w") as file:
-        json.dump(tracks, file)
+    return tracks
 
 
 if __name__ == "__main__":
