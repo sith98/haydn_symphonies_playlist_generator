@@ -96,30 +96,30 @@ def main():
     for number in chronology:
         if number in rankings and rankings[number][0] <= maximum_ranking:
             symphony_tracks = symphonies[number]
-            print(number, rankings[number][-1])
+            # print(number, rankings[number][-1])
             numbers.append(number)
             for track in symphony_tracks:
                 track_ids.append(track["id"])
 
-    # categories_in_order = []
-    # seen_categories = set()
+    categories_in_order = []
+    seen_categories = set()
 
-    # for number in chronology:
-    #     if number in rankings:
-    #         category = rankings[number][-1]
-    #         if category not in seen_categories:
-    #             categories_in_order.append(category)
-    #             seen_categories.add(category)
+    for number in chronology:
+        if number in rankings:
+            category = rankings[number][-1]
+            if category not in seen_categories:
+                categories_in_order.append(category)
+                seen_categories.add(category)
 
-    # for c in categories_in_order:
-    #     sym = categories[c]
-    #     average_points = sum(s[-1] for s in sym) / len(sym)
+    for c in categories_in_order:
+        sym = categories[c]
+        average_points = sum(s[-1] for s in sym) / len(sym)
 
-    #     sorted_sym = sorted(sym, key=lambda s: s[-1], reverse=True)
-    #     print(c)
-    #     for s in sorted_sym[:3]:
-    #         print(s[0], s[2])
-    #     print()
+        sorted_sym = sorted(sym, key=lambda s: s[-1], reverse=True)
+        print(f"{c} ({len(sym)})")
+        for s in sorted_sym[:3]:
+            print(s[0], s[2], rankings[s[0]][0])
+        print()
 
     print("total", len(numbers))
 
